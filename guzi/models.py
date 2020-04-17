@@ -45,6 +45,17 @@ class User:
         for guzi in guzis:
             self.balance.income.append(guzi)
 
+    def spend_to(self, amount, target):
+        if amount < 0:
+            raise ValueError("Cannot spend negative amount")
+        if amount > len(self.guzi_wallet):
+            raise ValueError("User cannot pay this amount")
+        if target is self:
+            self.total_accumulated += self.guzi_wallet[:10]
+        else:
+            target.pay(self.guzi_wallet[:10])
+        del self.guzi_wallet[:10]
+
     def check_balance(self):
         while len(self.balance.income) > len(self.balance.outcome):
             guzi = self.balance.income[-1]
