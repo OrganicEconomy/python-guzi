@@ -45,7 +45,7 @@ class User:
         for guzi in guzis:
             self.balance.income.append(guzi)
 
-    def spend_to(self, amount, target):
+    def spend_to(self, target, amount):
         if amount < 0:
             raise ValueError("Cannot spend negative amount")
         if amount > len(self.guzi_wallet):

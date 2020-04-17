@@ -62,13 +62,13 @@ class TestUser(unittest.TestCase):
         user = User("id", None)
 
         with self.assertRaises(ValueError):
-            user.spend_to(10, None)
+            user.spend_to(None, 10)
 
     def test_spend_to_should_raise_error_if_amount_is_negative(self):
         user = User("id", None)
 
         with self.assertRaises(ValueError):
-            user.spend_to(-10, None)
+            user.spend_to(None, -10)
 
     def test_spend_to_should_correctly_transfert_guzis(self):
         """
@@ -86,7 +86,7 @@ class TestUser(unittest.TestCase):
         self.assertEqual(len(target.guzi_wallet), 0)
         self.assertEqual(len(target.balance.income), 0)
 
-        source.spend_to(10, target)
+        source.spend_to(target, 10)
 
         self.assertEqual(len(source.guzi_wallet), 0)
         self.assertEqual(len(target.guzi_wallet), 0)
@@ -103,7 +103,7 @@ class TestUser(unittest.TestCase):
         for i in range(31):
             source.create_daily_guzis(date(2010, 1, i+1))
 
-        source.spend_to(10, target)
+        source.spend_to(target, 10)
 
         # After spending, user waits 9 days more (to be at 30)
         for i in range(10):
@@ -123,7 +123,7 @@ class TestUser(unittest.TestCase):
         for i in range(10):
             user.create_daily_guzis(date(2010, 2, i+1))
 
-        user.spend_to(10, user)
+        user.spend_to(user, 10)
 
         self.assertEqual(len(user.guzi_wallet), 0)
         self.assertEqual(len(user.balance.income), 0)
