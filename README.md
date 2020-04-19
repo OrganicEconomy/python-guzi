@@ -19,6 +19,8 @@ For now, a Guzi (and a Guza) is just a string, an identifier defining what it is
 
 Example of use :
 ```python
+from guzi.models import User
+
 # Create users
 user1 = User("unique_id1", birthdate=date(1989, 11, 28))
 user2 = User("unique_id2", birthdate=date(1998, 9, 5))
