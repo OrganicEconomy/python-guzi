@@ -1,5 +1,6 @@
 import collections
 from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 
 
 # This shortcut create a class named "Balance" with 2 attributes :
@@ -21,8 +22,6 @@ class User:
         """
         Return User's age at given date
         """
-        from dateutil.relativedelta import relativedelta
-
         years = relativedelta(date, self.birthdate).years
 
         if years < 0:
