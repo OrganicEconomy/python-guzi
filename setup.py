@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-guzi", # Replace with your own username
-    version="0.0.1",
+    version="0.0.2",
     author="Guillaume Dubus",
     author_email="Guillaume1.dubus@gmail.com",
     description="A light library to use Guzi in python application",
@@ -22,7 +22,10 @@ setuptools.setup(
 )
 
 # Note : upload command :
+# 1. Create dist files
+# $ rm dist/* && python3 setup.py sdist bdist_wheel
 #
+# 2. Push it to pypi
 # $ python3 -m twine upload  --repository-url https://upload.pypi.org/legacy/ dist/*
 #
 # For mor details, see https://packaging.python.org/tutorials/packaging-projects/
