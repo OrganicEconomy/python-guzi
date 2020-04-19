@@ -9,31 +9,25 @@ python -m unittest
 
 ## Usage
 
-Create a simulator to generate users and make them live with their Guzis and Guzas.
+Class User contains every Guzi relative information a user would need :
+    - guzi wallet
+    - guza waller
+    - total accumulated
+    - balance
+
+For now, a Guzi (and a Guza) is just a string, an identifier defining what it is. So it has no dedicated class. Maybe it will, but for now, nope.
 
 Example of use :
 ```python
-# Create a simulator with starting date on january the 3rd of 2010
-simulator = Simulator(date(2010, 1, 3))
+# Create users
+user1 = User("unique_id1", birthdate=date(1989, 11, 28))
+user2 = User("unique_id2", birthdate=date(1998, 9, 5))
 
-# Add users to the simulator
-user1 = simulator.generate_user()
-# A user born in the 80s
-user_born_in_the_80 = simulator.generate_user(min_birth=date(1980, 1, 1), max_birth=date(1989, 12, 31))
-# An adult user
-major_user = simulator.generate_adult_user()
-
-# Simulate the days passing
-simulator.new_day()
-simulator.new_day()
-simulator.new_day()
-
-# Or, to pass a week, a month, a year
-simulator.new_days(7)
-simulator.new_days(30)
-simulator.new_days(365)
+# create their Guzis (it's like having a new day)
+for i in range(10):
+    user1.create_daily_guzis(date(2020, 4, i))
 
 # Then make them spend between each other
-user1.spend_to(major_user, 30)
-user1.spend_to(user_born_in_the_80, 20)
+user1.spend_to(user2, 3)
+user1.spend_to(user2, 2)
 ```
