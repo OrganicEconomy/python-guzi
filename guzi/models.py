@@ -85,6 +85,20 @@ class User:
             target.pay(self.guzi_wallet[:amount])
         del self.guzi_wallet[:amount]
 
+    def give_guzas_to(self, target, amount):
+        """
+        give amount of Guzas to given Company target
+        if amount is < 0 or too expansive, raise an error
+        """
+        if amount < 0:
+            raise ValueError("Cannot give negative amount")
+        if amount > len(self.guza_wallet):
+            raise ValueError("User cannot give this amount")
+        if not isinstance(target, Company):
+            raise ValueError("Can only give Guzas to Company, not {}".format(type(target)))
+        target.add_guzas(self.guza_wallet[:amount])
+        del self.guza_wallet[:amount]
+
     def check_balance(self):
         """
         Check the balance state
@@ -134,10 +148,10 @@ class User:
 
 class Company:
 
-    def __init__(self, id):
+    def __init__(self, id, founders):
         self.id = id
         self.guza_wallet = []
-        self.engaged_strategy = DefaultEngagedStrategy()
+        self.engaged_strategy = DefaultEngagedStrategy(founders)
 
     def add_guzas(self, guzas):
         """
@@ -167,6 +181,9 @@ class Company:
     def add_engaged(self, user, times):
         self.engaged_strategy.add_engaged(user, times)
 
+    def add_founder(self, user, times):
+        self.engaged_strategy.add_founder(user, times)
+
     def pay(self, guzis):
         """
         When a User or a Company pays a Company, the paied Guzis don't stay in
@@ -193,9 +210,20 @@ class DefaultEngagedStrategy:
       (See test test_pay_should_pay_in_arrival_and_times_order for details)
       If a Company want a user to get daily engaged, it must add him daily
     """
-    def __init__(self):
+    def __init__(self, founders):
+        """
+        At least one founder is necessary, instead where would the profit paied
+        Guzis go ? Company CAN NOT KEEP ANY PAID GUZI, so it needs to send them
+        to any user : the founder(s)
+        """
+        if len(founders) == 0:
+            raise ValueError("At least one founder is necessary to a company")
         self.users = {}
         self.engaged_users = []
+        self.founders = []
+        for f in founders:
+            self.add_founder(f, 1)
+        self.founders_index = 0
 
     def add_engaged(self, user, times):
         """
@@ -206,7 +234,27 @@ class DefaultEngagedStrategy:
         for t in range(times):
             self.engaged_users.append(user.id)
 
+    def add_founder(self, user, times):
+        """
+        founders only get profit. If engaged keep arriving, they always firstly
+        get paid. If only every engaged has got his engagement filled, then the
+        founders get the profit.
+        The difference here is that they never leave. While there is profit,
+        they keep earning with a loop).
+        """
+        self.users[user.id] = user
+        for t in range(times):
+            self.founders.append(user.id)
+
     def pay(self, guzis):
         for g in guzis:
-            self.users[self.engaged_users[0]].pay(g)
+            self._pay_guzi(g)
+
+    def _pay_guzi(self, guzi):
+        if len(self.engaged_users) == 0:
+            self.users[self.founders[self.founders_index]].pay([guzi])
+            self.founders_index += 1
+            self.founders_index %= len(self.founders)
+        else:
+            self.users[self.engaged_users[0]].pay(guzi)
             del self.engaged_users[0]

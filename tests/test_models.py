@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 from datetime import date
 
 from guzi.models import User, Company, GuziCreator, DefaultEngagedStrategy
@@ -130,6 +131,66 @@ class TestUser(unittest.TestCase):
         self.assertEqual(len(user.balance.outcome), 0)
         self.assertEqual(len(user.total_accumulated), 10)
 
+    def test_give_guzas_to_should_raise_error_if_user_cannot_afford_it(self):
+        user = User("id", None)
+
+        with self.assertRaises(ValueError):
+            user.give_guzas_to(None, 10)
+
+    def test_give_guzas_to_should_raise_error_if_amount_is_negative(self):
+        user = User("id", None)
+
+        with self.assertRaises(ValueError):
+            user.give_guzas_to(None, -10)
+
+    def test_give_guzas_to_should_raise_error_if_target_is_not_a_company(self):
+        user = User("id", None)
+        target = User(None, None)
+
+        with self.assertRaises(ValueError):
+            user.give_guzas_to(target, 0)
+
+    def test_give_guzas_to_should_correctly_transfert_guzas(self):
+        """
+        If a user source gives guzas to a target company, source must lose his
+        guzas from his guza_wallet and target should have guza_wallet increased
+        of the amount
+        """
+        source = User("source", None)
+        target = Company("target", [User(None, None)])
+
+        for i in range(10):
+            source.create_daily_guzis(date(2010, 1, i+1))
+
+        self.assertEqual(len(source.guza_wallet), 10)
+        self.assertEqual(len(target.guza_wallet), 0)
+
+        source.give_guzas_to(target, 7)
+
+        self.assertEqual(len(source.guza_wallet), 3)
+        self.assertEqual(len(target.guza_wallet), 7)
+
+    def test_give_guzas_to_takes_older_guzas_first(self):
+        """
+        When a user gives Guzas, his oldest Guzas should be spended first
+        to avoid constant outdate
+        """
+        source = User("source", None)
+        target = Company("target", [User(None, None)])
+
+        for i in range(31):
+            source.create_daily_guzis(date(2010, 1, i+1))
+
+        source.give_guzas_to(target, 10)
+
+        # After spending, user waits 10 days more (to be at 31)
+        for i in range(10):
+            source.create_daily_guzis(date(2010, 2, i+1))
+        # Then, of oldest have been taken, there should have no outdated
+        # Guza which passed to the total_accumulated
+        source.check_outdated_guzis(date(2010, 2, 9))
+        self.assertEqual(len(source.guza_trashbin), 0)
+
     def test_check_balance_with_negative_balance(self):
         user = User("id", None)
         user.balance.outcome.append(1111)
@@ -166,6 +227,18 @@ class TestUser(unittest.TestCase):
         self.assertEqual(len(user.guzi_wallet), 0)
         self.assertEqual(len(user.total_accumulated), 1)
 
+    def test_check_outdated_guzis_correctly_remove_outdated_guzas(self):
+        user = User("id", None)
+        user.create_daily_guzis(date(2010, 1, 1))
+
+        self.assertEqual(len(user.guza_wallet), 1)
+        self.assertEqual(len(user.total_accumulated), 0)
+
+        user.check_outdated_guzis(date(2010, 2, 1))
+
+        self.assertEqual(len(user.guza_wallet), 0)
+        self.assertEqual(len(user.guza_trashbin), 1)
+
     def test_create_daily_guzis_for_empty_total_accumulated(self):
         user = User("id", None)
 
@@ -194,32 +267,32 @@ class TestUser(unittest.TestCase):
 class TestCompany(unittest.TestCase):
 
     def test_init_default_strategy_should_be_set(self):
-        company = Company("id")
+        company = Company("id", [User(None, None)])
 
         self.assertIsInstance(company.engaged_strategy, DefaultEngagedStrategy)
 
     def test_add_guzas_should_increase_guza_wallet(self):
-        company = Company("company_id")
+        company = Company("company_id", [User(None, None)])
 
         company.add_guzas(["1", "2"])
 
         self.assertEqual(len(company.guza_wallet), 2)
 
     def test_add_guzas_should_raise_error_if_guza_already_addn(self):
-        company = Company("company_id")
+        company = Company("company_id", [User(None, None)])
         company.guza_wallet = ["1"]
 
         with self.assertRaises(ValueError):
             company.add_guzas(["1", "2"])
 
     def test_spend_to_should_raise_error_if_company_cannot_afford_it(self):
-        company = Company("id")
+        company = Company("id", [User(None, None)])
 
         with self.assertRaises(ValueError):
             company.spend_to(None, 10)
 
     def test_spend_to_should_raise_error_if_amount_is_negative(self):
-        company = Company("id")
+        company = Company("id", [User(None, None)])
 
         with self.assertRaises(ValueError):
             company.spend_to(None, -10)
@@ -230,7 +303,7 @@ class TestCompany(unittest.TestCase):
         guzas from his guza_wallet and target should have guza_wallet unchanged
         while his balance_income has increased of the amount
         """
-        source = Company("source")
+        source = Company("source", [User(None, None)])
         source.guza_wallet = ["{}".format(i) for i in range(10)]
         target = User("target", None)
 
@@ -244,16 +317,56 @@ class TestCompany(unittest.TestCase):
         self.assertEqual(len(target.guza_wallet), 0)
         self.assertEqual(len(target.balance.income), 7)
 
+    def test_add_engaged_should_call_engaged_strategy(self):
+        user = User(None, None)
+        company = Company("id", [user])
+        company.engaged_strategy.add_engaged = MagicMock()
+
+        company.add_engaged(user, 1)
+
+        company.engaged_strategy.add_engaged.assert_called_with(user, 1)
+
+    def test_add_founder_should_call_engaged_strategy(self):
+        user = User(None, None)
+        company = Company("id", [user])
+        company.engaged_strategy.add_founder = MagicMock()
+
+        company.add_founder(user, 1)
+
+        company.engaged_strategy.add_founder.assert_called_with(user, 1)
+
+    def test_pay_should_call_engaged_strategy(self):
+        user = User(None, None)
+        company = Company("id", [user])
+        company.engaged_strategy.pay = MagicMock()
+
+        company.pay(["a", "b"])
+
+        company.engaged_strategy.pay.assert_called_with(["a", "b"])
+
 
 class TestDefaultEngagedStrategy(unittest.TestCase):
 
+    def test_init_should_raise_error_if_no_founder_given(self):
+        with self.assertRaises(ValueError):
+            DefaultEngagedStrategy([])
+
     def test_add_engaged_should_add_user_in_the_list_n_times(self):
-        strategy = DefaultEngagedStrategy()
+        strategy = DefaultEngagedStrategy([User(None, None)])
         user = User("id", None)
 
         strategy.add_engaged(user, 3)
 
         self.assertEqual(len(strategy.engaged_users), 3)
+
+    def test_add_founder_should_add_user_in_the_list_n_times(self):
+        user = User(None, None)
+        strategy = DefaultEngagedStrategy([user])
+        self.assertEqual(len(strategy.founders), 1)
+
+        strategy.add_founder(user, 3)
+
+        self.assertEqual(len(strategy.founders), 4)
 
     def test_pay_should_pay_in_arrival_and_times_order(self):
         """
@@ -269,7 +382,7 @@ class TestDefaultEngagedStrategy(unittest.TestCase):
         - User3 gets 4 Guzis
         - User 1 gets 1 Guzi
         """
-        strategy = DefaultEngagedStrategy()
+        strategy = DefaultEngagedStrategy([User(None, None)])
         user1 = User("id1", None)
         user2 = User("id2", None)
         user3 = User("id3", None)
@@ -288,3 +401,19 @@ class TestDefaultEngagedStrategy(unittest.TestCase):
         self.assertEqual(len(user1.balance.income), 4)
         self.assertEqual(len(user2.balance.income), 1)
         self.assertEqual(len(user3.balance.income), 5)
+
+    def test_pay_should_pay_founder_if_no_engaged(self):
+        founder = User("founder", None)
+        strategy = DefaultEngagedStrategy([founder])
+
+        strategy.pay(["1", "2", "3", "4", "5"])
+        self.assertEqual(len(founder.balance.income), 5)
+
+    def test_pay_should_pay_founderS_equaly_if_no_engaged(self):
+        founder1 = User("founder1", None)
+        founder2 = User("founder2", None)
+        strategy = DefaultEngagedStrategy([founder1, founder2])
+
+        strategy.pay(["1", "2", "3", "4"])
+        self.assertEqual(len(founder1.balance.income), 2)
+        self.assertEqual(len(founder2.balance.income), 2)
