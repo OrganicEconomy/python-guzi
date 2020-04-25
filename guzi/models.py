@@ -97,6 +97,8 @@ class User:
         if not isinstance(target, Company):
             raise ValueError("Can only give Guzas to Company, not {}".format(type(target)))
         target.add_guzas(self.guza_wallet[:amount])
+        for g in self.guza_wallet[:amount]:
+            self.balance.outcome.append(g)
         del self.guza_wallet[:amount]
 
     def check_balance(self):

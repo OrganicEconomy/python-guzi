@@ -191,6 +191,16 @@ class TestUser(unittest.TestCase):
         source.check_outdated_guzis(date(2010, 2, 9))
         self.assertEqual(len(source.guza_trashbin), 0)
 
+    def test_give_guzas_to_should_increase_balance_outcome(self):
+        source = User("source", None)
+        target = Company("target", [User(None, None)])
+
+        for i in range(10):
+            source.create_daily_guzis(date(2010, 1, i+1))
+
+        source.give_guzas_to(target, 10)
+        self.assertEqual(len(source.balance.outcome), 10)
+
     def test_check_balance_with_negative_balance(self):
         user = User("id", None)
         user.balance.outcome.append(1111)

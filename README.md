@@ -19,6 +19,7 @@ For now, a Guzi (and a Guza) is just a string, an identifier defining what it is
 
 Example of use :
 ```python
+from datetime import date
 from guzi.models import User
 
 # Create users
@@ -26,7 +27,7 @@ user1 = User("unique_id1", birthdate=date(1989, 11, 28))
 user2 = User("unique_id2", birthdate=date(1998, 9, 5))
 
 # create their Guzis (it's like having a new day)
-for i in range(10):
+for i in range(1, 10):
     user1.create_daily_guzis(date(2020, 4, i))
 
 # Then make them spend between each other
@@ -45,14 +46,19 @@ For example, an employee in the company would be engaged and would get his or he
 
 Usage:
 ```python
+from datetime import date
 from guzi.models import User, Company, DefaultEngagedStrategy
+
+# Create users
+user1 = User("unique_id1", birthdate=date(1989, 11, 28))
+user2 = User("unique_id2", birthdate=date(1998, 9, 5))
 
 # Create company
 founders = [user1, user2]
 company = Company("unique_id", founders)
 
 # Create users Guzas
-for i in range(10):
+for i in range(1, 10):
     user1.create_daily_guzis(date(2020, 4, i))
     user2.create_daily_guzis(date(2020, 4, i))
 
@@ -63,5 +69,6 @@ user2.give_guzas_to(company, 9)
 # Then company can spend those Guzas, for example to buy something to user1
 # who could sell something usefull for the company
 company.spend_to(user1, 6)
+user1.check_balance()
 assert(len(user1.total_accumulated) == 6-3)
 ```
