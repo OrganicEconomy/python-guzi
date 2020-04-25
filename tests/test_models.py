@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from guzi.models import User
+from guzi.models import User, Company, GuziCreator, DefaultEngagedStrategy
 
 class TestUser(unittest.TestCase):
 
@@ -86,11 +86,11 @@ class TestUser(unittest.TestCase):
         self.assertEqual(len(target.guzi_wallet), 0)
         self.assertEqual(len(target.balance.income), 0)
 
-        source.spend_to(target, 10)
+        source.spend_to(target, 7)
 
-        self.assertEqual(len(source.guzi_wallet), 0)
+        self.assertEqual(len(source.guzi_wallet), 3)
         self.assertEqual(len(target.guzi_wallet), 0)
-        self.assertEqual(len(target.balance.income), 10)
+        self.assertEqual(len(target.balance.income), 7)
 
     def test_spend_to_takes_older_guzis_first(self):
         """
@@ -189,3 +189,102 @@ class TestUser(unittest.TestCase):
         self.assertEqual(user.guza_wallet[0], "2000-01-01-id-guza0000")
         self.assertEqual(user.guza_wallet[1], "2000-01-01-id-guza0001")
         self.assertEqual(user.guza_wallet[2], "2000-01-01-id-guza0002")
+
+
+class TestCompany(unittest.TestCase):
+
+    def test_init_default_strategy_should_be_set(self):
+        company = Company("id")
+
+        self.assertIsInstance(company.engaged_strategy, DefaultEngagedStrategy)
+
+    def test_add_guzas_should_increase_guza_wallet(self):
+        company = Company("company_id")
+
+        company.add_guzas(["1", "2"])
+
+        self.assertEqual(len(company.guza_wallet), 2)
+
+    def test_add_guzas_should_raise_error_if_guza_already_addn(self):
+        company = Company("company_id")
+        company.guza_wallet = ["1"]
+
+        with self.assertRaises(ValueError):
+            company.add_guzas(["1", "2"])
+
+    def test_spend_to_should_raise_error_if_company_cannot_afford_it(self):
+        company = Company("id")
+
+        with self.assertRaises(ValueError):
+            company.spend_to(None, 10)
+
+    def test_spend_to_should_raise_error_if_amount_is_negative(self):
+        company = Company("id")
+
+        with self.assertRaises(ValueError):
+            company.spend_to(None, -10)
+
+    def test_spend_to_should_correctly_transfert_guzas(self):
+        """
+        If a company source spends guza to an target one, source must lose his
+        guzas from his guza_wallet and target should have guza_wallet unchanged
+        while his balance_income has increased of the amount
+        """
+        source = Company("source")
+        source.guza_wallet = ["{}".format(i) for i in range(10)]
+        target = User("target", None)
+
+        self.assertEqual(len(source.guza_wallet), 10)
+        self.assertEqual(len(target.guza_wallet), 0)
+        self.assertEqual(len(target.balance.income), 0)
+
+        source.spend_to(target, 7)
+
+        self.assertEqual(len(source.guza_wallet), 3)
+        self.assertEqual(len(target.guza_wallet), 0)
+        self.assertEqual(len(target.balance.income), 7)
+
+
+class TestDefaultEngagedStrategy(unittest.TestCase):
+
+    def test_add_engaged_should_add_user_in_the_list_n_times(self):
+        strategy = DefaultEngagedStrategy()
+        user = User("id", None)
+
+        strategy.add_engaged(user, 3)
+
+        self.assertEqual(len(strategy.engaged_users), 3)
+
+    def test_pay_should_pay_in_arrival_and_times_order(self):
+        """
+        - Add User1 3 times
+        - Add User2 1 time
+        - Add User3 5 times
+        - Add User1 2 times (yes, User1 again)
+        Then, when pay is called for 5 Guzis :
+        - Firstly, User1 gets 3 Guzis
+        - Secondly, User2 gets 1 Guzi
+        - Finaly, User3 gets 1 Gusi
+        Then, when pay is called again for 5 Guzis
+        - User3 gets 4 Guzis
+        - User 1 gets 1 Guzi
+        """
+        strategy = DefaultEngagedStrategy()
+        user1 = User("id1", None)
+        user2 = User("id2", None)
+        user3 = User("id3", None)
+
+        strategy.add_engaged(user1, 3)
+        strategy.add_engaged(user2, 1)
+        strategy.add_engaged(user3, 5)
+        strategy.add_engaged(user1, 2)
+
+        strategy.pay(["1", "2", "3", "4", "5"])
+        self.assertEqual(len(user1.balance.income), 3)
+        self.assertEqual(len(user2.balance.income), 1)
+        self.assertEqual(len(user3.balance.income), 1)
+
+        strategy.pay(["1", "2", "3", "4", "5"])
+        self.assertEqual(len(user1.balance.income), 4)
+        self.assertEqual(len(user2.balance.income), 1)
+        self.assertEqual(len(user3.balance.income), 5)

@@ -7,6 +7,14 @@ from dateutil.relativedelta import relativedelta
 # "income" & "outcome"
 Balance = collections.namedtuple('Balance', 'income outcome')
 
+class GuziCreator:
+    def create_guzi(user, date, index):
+        return date.isoformat() + "-" + user.id + "-guzi{:04d}".format(index)
+
+    def create_guza(user, date, index):
+        return date.isoformat() + "-" + user.id + "-guza{:04d}".format(index)
+
+
 class User:
 
     def __init__(self, id, birthdate):
@@ -17,6 +25,12 @@ class User:
         self.total_accumulated = []
         self.guza_trashbin = []
         self.balance = Balance([], [])
+
+    def daily_guzis(self):
+        """
+        Return the number of Guzis (and Guzas) the user should earn each day
+        """
+        return int(len(self.total_accumulated) ** (1/3) + 1)
 
     def age(self, date=date.today()):
         """
@@ -66,10 +80,10 @@ class User:
         if amount > len(self.guzi_wallet):
             raise ValueError("User cannot pay this amount")
         if target is self:
-            self.total_accumulated += self.guzi_wallet[:10]
+            self.total_accumulated += self.guzi_wallet[:amount]
         else:
-            target.pay(self.guzi_wallet[:10])
-        del self.guzi_wallet[:10]
+            target.pay(self.guzi_wallet[:amount])
+        del self.guzi_wallet[:amount]
 
     def check_balance(self):
         """
@@ -106,13 +120,93 @@ class User:
             <date> : 2010-04-18
             <guzi_index> : 4 digits index ("0001", "0342")
         """
-        number_of_guzis_to_add = int(len(self.total_accumulated) ** (1/3) + 1)
+        number_of_guzis_to_add = self.daily_guzis()
         for i in range(number_of_guzis_to_add):
-            self.guzi_wallet.append(date.isoformat() + "-" + self.id + "-guzi{:04d}".format(i))
-            self.guza_wallet.append(date.isoformat() + "-" + self.id + "-guza{:04d}".format(i))
+            self.guzi_wallet.append(GuziCreator.create_guzi(self, date, i))
+            self.guza_wallet.append(GuziCreator.create_guza(self, date, i))
 
     def _is_guzi(self, guzi):
         return guzi[-8:-4] == "guzi"
 
     def _is_guza(self, guzi):
         return guzi[-8:-4] == "guza"
+
+
+class Company:
+
+    def __init__(self, id):
+        self.id = id
+        self.guza_wallet = []
+        self.engaged_strategy = DefaultEngagedStrategy()
+
+    def add_guzas(self, guzas):
+        """
+        add_guzas is called from User to give the Company Guzas it will then
+        be able to spend.
+        """
+        for guza in guzas:
+            if guza in self.guza_wallet:
+                raise ValueError("guza {} already given".format(guza)) 
+        self.guza_wallet += guzas
+
+    def spend_to(self, target, amount):
+        """
+        Spend given amount of Guzas to given User target
+        if amount is < 0 or too expansive, raise an error
+        """
+        if amount < 0:
+            raise ValueError("Cannot spend negative amount")
+        if amount > len(self.guza_wallet):
+            raise ValueError("User cannot pay this amount")
+        if target is self:
+            self.total_accumulated += self.guza_wallet[:amount]
+        else:
+            target.pay(self.guza_wallet[:amount])
+        del self.guza_wallet[:amount]
+
+    def add_engaged(self, user, times):
+        self.engaged_strategy.add_engaged(user, times)
+
+    def pay(self, guzis):
+        """
+        When a User or a Company pays a Company, the paied Guzis don't stay in
+        any Company wallet, it goes directly to Company's engaged users balance.
+        """
+        self.engaged_strategy.pay(guzis)
+
+
+class DefaultEngagedStrategy:
+    """
+    DefaultEngagedStrategy gives Guzis to users fully in arrived order
+    Example :
+      - Add User1 3 times
+      - Add User2 1 time
+      - Add User3 5 times
+      - Add User1 2 times (yes, User1 again)
+      Then, when pay is called for 5 Guzis :
+      - Firstly, User1 gets 3 Guzis
+      - Secondly, User2 gets 1 Guzi
+      - Finaly, User3 gets 1 Gusi
+      Then, when pay is called again for 5 Guzis
+      - User3 gets 4 Guzis
+      - User 1 gets 1 Guzi
+      (See test test_pay_should_pay_in_arrival_and_times_order for details)
+      If a Company want a user to get daily engaged, it must add him daily
+    """
+    def __init__(self):
+        self.users = {}
+        self.engaged_users = []
+
+    def add_engaged(self, user, times):
+        """
+        Here we store users once in users dict
+        and only store ids in engaged_users, to avoid big memory use
+        """
+        self.users[user.id] = user
+        for t in range(times):
+            self.engaged_users.append(user.id)
+
+    def pay(self, guzis):
+        for g in guzis:
+            self.users[self.engaged_users[0]].pay(g)
+            del self.engaged_users[0]
