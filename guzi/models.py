@@ -15,7 +15,15 @@ class GuziCreator:
         return date.isoformat() + "-" + user.id + "-guza{:04d}".format(index)
 
 
-class User:
+class SpendableEntity:
+    def pay(self, guzis):
+        raise NotImplementedError
+        
+    def spend_to(self, target, amount):
+        raise NotImplementedError
+
+
+class User(SpendableEntity):
 
     def __init__(self, id, birthdate):
         self.id = id
@@ -148,7 +156,7 @@ class User:
         return guzi[-8:-4] == "guza"
 
 
-class Company:
+class Company(SpendableEntity):
 
     def __init__(self, id, founders):
         self.id = id
