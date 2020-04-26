@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-guzi",
-    version="0.1.0",
+    version="0.1.1",
     author="Guillaume Dubus",
     author_email="Guillaume1.dubus@gmail.com",
     description="A light library to use Guzi in python application",
