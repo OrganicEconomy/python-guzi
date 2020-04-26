@@ -163,12 +163,12 @@ class TestUser(unittest.TestCase):
             source.create_daily_guzis(date(2010, 1, i+1))
 
         self.assertEqual(len(source.guza_wallet), 10)
-        self.assertEqual(len(target.guza_wallet), 0)
+        self.assertEqual(len(target.guzi_wallet), 0)
 
         source.give_guzas_to(target, 7)
 
         self.assertEqual(len(source.guza_wallet), 3)
-        self.assertEqual(len(target.guza_wallet), 7)
+        self.assertEqual(len(target.guzi_wallet), 7)
 
     def test_give_guzas_to_takes_older_guzas_first(self):
         """
@@ -281,16 +281,16 @@ class TestCompany(unittest.TestCase):
 
         self.assertIsInstance(company.engaged_strategy, DefaultEngagedStrategy)
 
-    def test_add_guzas_should_increase_guza_wallet(self):
+    def test_add_guzas_should_increase_guzi_wallet(self):
         company = Company("company_id", [User(None, None)])
 
         company.add_guzas(["1", "2"])
 
-        self.assertEqual(len(company.guza_wallet), 2)
+        self.assertEqual(len(company.guzi_wallet), 2)
 
     def test_add_guzas_should_raise_error_if_guza_already_addn(self):
         company = Company("company_id", [User(None, None)])
-        company.guza_wallet = ["1"]
+        company.guzi_wallet = ["1"]
 
         with self.assertRaises(ValueError):
             company.add_guzas(["1", "2"])
@@ -309,21 +309,21 @@ class TestCompany(unittest.TestCase):
 
     def test_spend_to_should_correctly_transfert_guzas(self):
         """
-        If a company source spends guza to an target one, source must lose his
-        guzas from his guza_wallet and target should have guza_wallet unchanged
+        If a company source spends guza to an target user, source must lose his
+        guzas from his guzi_wallet and target should have guza_wallet unchanged
         while his balance_income has increased of the amount
         """
         source = Company("source", [User(None, None)])
-        source.guza_wallet = ["{}".format(i) for i in range(10)]
+        source.guzi_wallet = ["{}".format(i) for i in range(10)]
         target = User("target", None)
 
-        self.assertEqual(len(source.guza_wallet), 10)
+        self.assertEqual(len(source.guzi_wallet), 10)
         self.assertEqual(len(target.guza_wallet), 0)
         self.assertEqual(len(target.balance.income), 0)
 
         source.spend_to(target, 7)
 
-        self.assertEqual(len(source.guza_wallet), 3)
+        self.assertEqual(len(source.guzi_wallet), 3)
         self.assertEqual(len(target.guza_wallet), 0)
         self.assertEqual(len(target.balance.income), 7)
 

@@ -160,7 +160,7 @@ class Company(SpendableEntity):
 
     def __init__(self, id, founders):
         self.id = id
-        self.guza_wallet = []
+        self.guzi_wallet = []
         self.engaged_strategy = DefaultEngagedStrategy(founders)
 
     def add_guzas(self, guzas):
@@ -169,9 +169,9 @@ class Company(SpendableEntity):
         be able to spend.
         """
         for guza in guzas:
-            if guza in self.guza_wallet:
+            if guza in self.guzi_wallet:
                 raise ValueError("guza {} already given".format(guza)) 
-        self.guza_wallet += guzas
+        self.guzi_wallet += guzas
 
     def spend_to(self, target, amount):
         """
@@ -180,13 +180,13 @@ class Company(SpendableEntity):
         """
         if amount < 0:
             raise ValueError("Cannot spend negative amount")
-        if amount > len(self.guza_wallet):
+        if amount > len(self.guzi_wallet):
             raise ValueError("User cannot pay this amount")
         if target is self:
-            self.total_accumulated += self.guza_wallet[:amount]
+            self.total_accumulated += self.guzi_wallet[:amount]
         else:
-            target.pay(self.guza_wallet[:amount])
-        del self.guza_wallet[:amount]
+            target.pay(self.guzi_wallet[:amount])
+        del self.guzi_wallet[:amount]
 
     def add_engaged(self, user, times):
         self.engaged_strategy.add_engaged(user, times)
