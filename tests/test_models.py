@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 from datetime import date
 
-from guzi.models import User, Company, GuziCreator, DefaultEngagedStrategy
+from guzi.models import User, Ecosystem, GuziCreator, DefaultEngagedStrategy
 
 class TestUser(unittest.TestCase):
 
@@ -12,11 +12,9 @@ class TestUser(unittest.TestCase):
         user = User(1234, date_of_birth)
 
         self.assertEqual(user.id, 1234)
-        self.assertEqual(len(user.guzi_wallet), 0)
-        self.assertEqual(len(user.guza_wallet), 0)
-        self.assertEqual(len(user.total_accumulated), 0)
-        self.assertEqual(len(user.balance.income), 0)
-        self.assertEqual(len(user.balance.outcome), 0)
+        self.assertEqual(len(user.money_wallet), 0)
+        self.assertEqual(len(user.invest_wallet), 0)
+        self.assertEqual(len(user.economic_exp), 0)
         self.assertEqual(user.birthdate, date(2012, 3, 18))
 
     def test_age(self):
@@ -35,29 +33,29 @@ class TestUser(unittest.TestCase):
         with self.assertRaises(ValueError):
             user.age(date(2000, 1, 1))
 
-    def test_outdate_raise_error_for_unexisting_guzi(self):
+    def test_outdate_raise_error_for_unexisting_money(self):
         user = User("id", None)
 
         with self.assertRaises(ValueError):
             user.outdate([1234, 4321])
 
-    def test_outdate_valid_guzi(self):
+    def test_outdate_valid_money(self):
         user = User("id", None)
-        user.guzi_wallet.append("2000-01-01-id-guzi0000")
-        user.guzi_wallet.append("2000-01-01-id-guzi0001")
-        user.guzi_wallet.append("2000-01-01-id-guzi0002")
+        user.money_wallet.append("2000-01-01-id-money0000")
+        user.money_wallet.append("2000-01-01-id-money0001")
+        user.money_wallet.append("2000-01-01-id-money0002")
 
-        user.outdate(["2000-01-01-id-guzi0000"])
+        user.outdate(["2000-01-01-id-money0000"])
 
-        self.assertEqual(len(user.guzi_wallet), 2)
-        self.assertEqual(len(user.total_accumulated), 1)
+        self.assertEqual(len(user.money_wallet), 2)
+        self.assertEqual(len(user.economic_exp), 1)
 
     def test_pay(self):
         user = User("id", None)
 
         user.pay([1111, 2222, 3333])
 
-        self.assertEqual(len(user.balance.income), 3)
+        self.assertEqual(len(user.economic_exp), 3)
 
     def test_spend_to_should_raise_error_if_user_cannot_afford_it(self):
         user = User("id", None)
@@ -71,288 +69,252 @@ class TestUser(unittest.TestCase):
         with self.assertRaises(ValueError):
             user.spend_to(None, -10)
 
-    def test_spend_to_should_correctly_transfert_guzis(self):
+    def test_spend_to_should_correctly_transfert_moneys(self):
         """
-        If a user source spends guzi to an target one, source must lose his
-        guzis from his guzi_wallet and target should have guzi_wallet unchanged
-        while his balance_income has increased of the amount
+        If a user source spends money to an target one, source must lose his
+        moneys from his money_wallet and target should have money_wallet unchanged
+        while his economic_exp has increased of the amount
         """
         source = User("source", None)
         target = User("target", None)
 
         for i in range(10):
-            source.create_daily_guzis(date(2010, 1, i+1))
+            source.create_daily_money_and_invest(date(2010, 1, i+1))
 
-        self.assertEqual(len(source.guzi_wallet), 10)
-        self.assertEqual(len(target.guzi_wallet), 0)
-        self.assertEqual(len(target.balance.income), 0)
+        self.assertEqual(len(source.money_wallet), 10)
+        self.assertEqual(len(target.money_wallet), 0)
+        self.assertEqual(len(target.economic_exp), 0)
 
         source.spend_to(target, 7)
 
-        self.assertEqual(len(source.guzi_wallet), 3)
-        self.assertEqual(len(target.guzi_wallet), 0)
-        self.assertEqual(len(target.balance.income), 7)
+        self.assertEqual(len(source.money_wallet), 3)
+        self.assertEqual(len(target.money_wallet), 0)
+        self.assertEqual(len(target.economic_exp), 7)
 
-    def test_spend_to_takes_older_guzis_first(self):
+    def test_spend_to_takes_older_moneys_first(self):
         """
         When a user pays, his oldest Guzis should be spended first
         to avoid constant outdate
         """
         source = User("source", None)
         target = User("target", None)
+        trashEcosystem = Ecosystem("trash", [target])
 
         for i in range(31):
-            source.create_daily_guzis(date(2010, 1, i+1))
+            source.create_daily_money_and_invest(date(2010, 1, i+1))
 
         source.spend_to(target, 10)
+        source.invest_in(trashEcosystem, 10)
 
         # After spending, user waits 9 days more (to be at 30)
         for i in range(10):
-            source.create_daily_guzis(date(2010, 2, i+1))
+            source.create_daily_money_and_invest(date(2010, 2, i+1))
         # Then, of oldest have been taken, there should have no outdated
-        # Guzi which passed to the total_accumulated
-        source.check_outdated_guzis(date(2010, 2, 9))
-        self.assertEqual(len(source.total_accumulated), 0)
+        # Money which passed to the economic_exp
+        source.check_outdated_moneys(date(2010, 2, 9))
+        self.assertEqual(len(source.economic_exp), 0)
 
-    def test_spend_to_user_to_himself_should_go_to_total_accumulated(self):
+    def test_spend_to_user_to_himself_should_go_to_economic_exp(self):
         """
         When a user spends his own Guzis to himself, before they become
-        outdated, then they are added to total_accumulated
+        outdated, then they are added to economic_exp
         """
         user = User("", None)
 
         for i in range(10):
-            user.create_daily_guzis(date(2010, 2, i+1))
+            user.create_daily_money_and_invest(date(2010, 2, i+1))
 
         user.spend_to(user, 10)
 
-        self.assertEqual(len(user.guzi_wallet), 0)
-        self.assertEqual(len(user.balance.income), 0)
-        self.assertEqual(len(user.balance.outcome), 0)
-        self.assertEqual(len(user.total_accumulated), 10)
+        self.assertEqual(len(user.money_wallet), 0)
+        self.assertEqual(len(user.economic_exp), 10)
 
-    def test_give_guzas_to_should_raise_error_if_user_cannot_afford_it(self):
+    def test_give_invests_to_should_raise_error_if_user_cannot_afford_it(self):
         user = User("id", None)
 
         with self.assertRaises(ValueError):
-            user.give_guzas_to(None, 10)
+            user.invest_in(None, 10)
 
-    def test_give_guzas_to_should_raise_error_if_amount_is_negative(self):
+    def test_give_invests_to_should_raise_error_if_amount_is_negative(self):
         user = User("id", None)
 
         with self.assertRaises(ValueError):
-            user.give_guzas_to(None, -10)
+            user.invest_in(None, -10)
 
-    def test_give_guzas_to_should_raise_error_if_target_is_not_a_company(self):
+    def test_give_invests_to_should_raise_error_if_target_is_not_an_ecosystem(self):
         user = User("id", None)
         target = User(None, None)
 
         with self.assertRaises(ValueError):
-            user.give_guzas_to(target, 0)
+            user.invest_in(target, 0)
 
-    def test_give_guzas_to_should_correctly_transfert_guzas(self):
+    def test_give_invests_to_should_correctly_transfert_invests(self):
         """
-        If a user source gives guzas to a target company, source must lose his
-        guzas from his guza_wallet and target should have guza_wallet increased
+        If a user source gives invests to a target ecosystem, source must lose his
+        invests from his invest_wallet and target should have invest_wallet increased
         of the amount
         """
         source = User("source", None)
-        target = Company("target", [User(None, None)])
+        target = Ecosystem("target", [User(None, None)])
 
         for i in range(10):
-            source.create_daily_guzis(date(2010, 1, i+1))
+            source.create_daily_money_and_invest(date(2010, 1, i+1))
 
-        self.assertEqual(len(source.guza_wallet), 10)
-        self.assertEqual(len(target.guzi_wallet), 0)
+        self.assertEqual(len(source.invest_wallet), 10)
+        self.assertEqual(len(target.money_wallet), 0)
 
-        source.give_guzas_to(target, 7)
+        source.invest_in(target, 7)
 
-        self.assertEqual(len(source.guza_wallet), 3)
-        self.assertEqual(len(target.guzi_wallet), 7)
+        self.assertEqual(len(source.invest_wallet), 3)
+        self.assertEqual(len(target.money_wallet), 7)
 
-    def test_give_guzas_to_takes_older_guzas_first(self):
+    def test_give_invests_to_takes_older_invests_first(self):
         """
         When a user gives Guzas, his oldest Guzas should be spended first
         to avoid constant outdate
         """
         source = User("source", None)
-        target = Company("target", [User(None, None)])
+        target = Ecosystem("target", [User(None, None)])
 
         for i in range(31):
-            source.create_daily_guzis(date(2010, 1, i+1))
+            source.create_daily_money_and_invest(date(2010, 1, i+1))
 
-        source.give_guzas_to(target, 10)
+        source.invest_in(target, 10)
 
         # After spending, user waits 10 days more (to be at 31)
         for i in range(10):
-            source.create_daily_guzis(date(2010, 2, i+1))
+            source.create_daily_money_and_invest(date(2010, 2, i+1))
         # Then, of oldest have been taken, there should have no outdated
-        # Guza which passed to the total_accumulated
-        source.check_outdated_guzis(date(2010, 2, 9))
-        self.assertEqual(len(source.guza_trashbin), 0)
+        # Guza which passed to the economic_exp
+        source.check_outdated_moneys(date(2010, 2, 9))
+        self.assertEqual(len(source.invest_trashbin), 0)
 
-    def test_give_guzas_to_should_increase_balance_outcome(self):
-        source = User("source", None)
-        target = Company("target", [User(None, None)])
-
-        for i in range(10):
-            source.create_daily_guzis(date(2010, 1, i+1))
-
-        source.give_guzas_to(target, 10)
-        self.assertEqual(len(source.balance.outcome), 10)
-
-    def test_check_balance_with_negative_balance(self):
+    def test_check_outdated_moneys_correctly_remove_outdated_moneys(self):
         user = User("id", None)
-        user.balance.outcome.append(1111)
+        user.create_daily_money_and_invest(date(2010, 1, 1))
 
-        user.check_balance()
+        self.assertEqual(len(user.money_wallet), 1)
+        self.assertEqual(len(user.economic_exp), 0)
 
-        self.assertEqual(len(user.balance.outcome), 1)
-        self.assertEqual(len(user.balance.income), 0)
-        self.assertEqual(len(user.total_accumulated), 0)
+        user.check_outdated_moneys(date(2010, 2, 1))
 
-    def test_check_balance_with_positive_balance(self):
+        self.assertEqual(len(user.money_wallet), 0)
+        self.assertEqual(len(user.economic_exp), 2)
+
+    def test_check_outdated_moneys_correctly_remove_outdated_invests(self):
         user = User("id", None)
-        user.balance.income.append(1111)
+        user.create_daily_money_and_invest(date(2010, 1, 1))
 
-        self.assertEqual(len(user.balance.outcome), 0)
-        self.assertEqual(len(user.balance.income), 1)
-        self.assertEqual(len(user.total_accumulated), 0)
+        self.assertEqual(len(user.invest_wallet), 1)
+        self.assertEqual(len(user.economic_exp), 0)
 
-        user.check_balance()
+        user.check_outdated_moneys(date(2010, 2, 1))
 
-        self.assertEqual(len(user.balance.outcome), 0)
-        self.assertEqual(len(user.balance.income), 0)
-        self.assertEqual(len(user.total_accumulated), 1)
+        self.assertEqual(len(user.invest_wallet), 0)
+        self.assertEqual(len(user.economic_exp), 2)
 
-    def test_check_outdated_guzis_correctly_remove_outdated_guzis(self):
-        user = User("id", None)
-        user.create_daily_guzis(date(2010, 1, 1))
-
-        self.assertEqual(len(user.guzi_wallet), 1)
-        self.assertEqual(len(user.total_accumulated), 0)
-
-        user.check_outdated_guzis(date(2010, 2, 1))
-
-        self.assertEqual(len(user.guzi_wallet), 0)
-        self.assertEqual(len(user.total_accumulated), 1)
-
-    def test_check_outdated_guzis_correctly_remove_outdated_guzas(self):
-        user = User("id", None)
-        user.create_daily_guzis(date(2010, 1, 1))
-
-        self.assertEqual(len(user.guza_wallet), 1)
-        self.assertEqual(len(user.total_accumulated), 0)
-
-        user.check_outdated_guzis(date(2010, 2, 1))
-
-        self.assertEqual(len(user.guza_wallet), 0)
-        self.assertEqual(len(user.guza_trashbin), 1)
-
-    def test_create_daily_guzis_for_empty_total_accumulated(self):
+    def test_create_daily_moneys_for_empty_total_accumulated(self):
         user = User("id", None)
 
-        user.create_daily_guzis(date(2000, 1, 1))
+        user.create_daily_money_and_invest(date(2000, 1, 1))
 
-        self.assertEqual(len(user.guzi_wallet), 1)
-        self.assertEqual(len(user.guza_wallet), 1)
+        self.assertEqual(len(user.money_wallet), 1)
+        self.assertEqual(len(user.invest_wallet), 1)
 
-    def test_create_daily_guzis_for_round_total_accumulated(self):
+    def test_create_daily_moneys_for_round_total_accumulated(self):
         user = User("id", None)
-        # With 8 guzis in total_accumulated, user should get 3 Guzis/day
-        user.total_accumulated += [1111, 2222, 3333, 4444, 5555, 6666, 7777, 8888]
+        # With 8 moneys in economic_exp, user should get 3 Guzis/day
+        user.economic_exp += [1111, 2222, 3333, 4444, 5555, 6666, 7777, 8888]
 
-        user.create_daily_guzis(date(2000, 1, 1))
+        user.create_daily_money_and_invest(date(2000, 1, 1))
 
-        self.assertEqual(len(user.guzi_wallet), 3)
-        self.assertEqual(len(user.guza_wallet), 3)
-        self.assertEqual(user.guzi_wallet[0], "2000-01-01-id-guzi0000")
-        self.assertEqual(user.guzi_wallet[1], "2000-01-01-id-guzi0001")
-        self.assertEqual(user.guzi_wallet[2], "2000-01-01-id-guzi0002")
-        self.assertEqual(user.guza_wallet[0], "2000-01-01-id-guza0000")
-        self.assertEqual(user.guza_wallet[1], "2000-01-01-id-guza0001")
-        self.assertEqual(user.guza_wallet[2], "2000-01-01-id-guza0002")
+        self.assertEqual(len(user.money_wallet), 3)
+        self.assertEqual(len(user.invest_wallet), 3)
+        self.assertEqual(user.money_wallet[0], "2000-01-01-id-money0000")
+        self.assertEqual(user.money_wallet[1], "2000-01-01-id-money0001")
+        self.assertEqual(user.money_wallet[2], "2000-01-01-id-money0002")
+        self.assertEqual(user.invest_wallet[0], "2000-01-01-id-invest0000")
+        self.assertEqual(user.invest_wallet[1], "2000-01-01-id-invest0001")
+        self.assertEqual(user.invest_wallet[2], "2000-01-01-id-invest0002")
 
 
-class TestCompany(unittest.TestCase):
+class TestEcosystem(unittest.TestCase):
 
     def test_init_default_strategy_should_be_set(self):
-        company = Company("id", [User(None, None)])
+        ecosystem = Ecosystem("id", [User(None, None)])
 
-        self.assertIsInstance(company.engaged_strategy, DefaultEngagedStrategy)
+        self.assertIsInstance(ecosystem.engaged_strategy, DefaultEngagedStrategy)
 
-    def test_add_guzas_should_increase_guzi_wallet(self):
-        company = Company("company_id", [User(None, None)])
+    def test_add_invests_should_increase_money_wallet(self):
+        ecosystem = Ecosystem("company_id", [User(None, None)])
 
-        company.add_guzas(["1", "2"])
+        ecosystem.add_invests(["1", "2"])
 
-        self.assertEqual(len(company.guzi_wallet), 2)
+        self.assertEqual(len(ecosystem.money_wallet), 2)
 
-    def test_add_guzas_should_raise_error_if_guza_already_addn(self):
-        company = Company("company_id", [User(None, None)])
-        company.guzi_wallet = ["1"]
+    def test_add_invests_should_raise_error_if_invest_already_added(self):
+        ecosystem = Ecosystem("ecosystem_id", [User(None, None)])
+        ecosystem.money_wallet = ["1"]
 
         with self.assertRaises(ValueError):
-            company.add_guzas(["1", "2"])
+            ecosystem.add_invests(["1", "2"])
 
     def test_spend_to_should_raise_error_if_company_cannot_afford_it(self):
-        company = Company("id", [User(None, None)])
+        ecosystem = Ecosystem("id", [User(None, None)])
 
         with self.assertRaises(ValueError):
-            company.spend_to(None, 10)
+            ecosystem.spend_to(None, 10)
 
     def test_spend_to_should_raise_error_if_amount_is_negative(self):
-        company = Company("id", [User(None, None)])
+        ecosystem = Ecosystem("id", [User(None, None)])
 
         with self.assertRaises(ValueError):
-            company.spend_to(None, -10)
+            ecosystem.spend_to(None, -10)
 
-    def test_spend_to_should_correctly_transfert_guzas(self):
+    def test_spend_to_should_correctly_transfert_invests(self):
         """
-        If a company source spends guza to an target user, source must lose his
-        guzas from his guzi_wallet and target should have guza_wallet unchanged
-        while his balance_income has increased of the amount
+        If a ecosystem source spends invest to an target user, source must lose his
+        invests from his money_wallet and target should have invest_wallet unchanged
         """
-        source = Company("source", [User(None, None)])
-        source.guzi_wallet = ["{}".format(i) for i in range(10)]
+        source = Ecosystem("source", [User(None, None)])
+        source.money_wallet = ["{}".format(i) for i in range(10)]
         target = User("target", None)
 
-        self.assertEqual(len(source.guzi_wallet), 10)
-        self.assertEqual(len(target.guza_wallet), 0)
-        self.assertEqual(len(target.balance.income), 0)
+        self.assertEqual(len(source.money_wallet), 10)
+        self.assertEqual(len(target.invest_wallet), 0)
 
         source.spend_to(target, 7)
 
-        self.assertEqual(len(source.guzi_wallet), 3)
-        self.assertEqual(len(target.guza_wallet), 0)
-        self.assertEqual(len(target.balance.income), 7)
+        self.assertEqual(len(source.money_wallet), 3)
+        self.assertEqual(len(target.invest_wallet), 0)
+        self.assertEqual(len(target.economic_exp), 7)
 
     def test_add_engaged_should_call_engaged_strategy(self):
         user = User(None, None)
-        company = Company("id", [user])
-        company.engaged_strategy.add_engaged = MagicMock()
+        ecosystem = Ecosystem("id", [user])
+        ecosystem.engaged_strategy.add_engaged = MagicMock()
 
-        company.add_engaged(user, 1)
+        ecosystem.add_engaged(user, 1)
 
-        company.engaged_strategy.add_engaged.assert_called_with(user, 1)
+        ecosystem.engaged_strategy.add_engaged.assert_called_with(user, 1)
 
     def test_add_founder_should_call_engaged_strategy(self):
         user = User(None, None)
-        company = Company("id", [user])
-        company.engaged_strategy.add_founder = MagicMock()
+        ecosystem = Ecosystem("id", [user])
+        ecosystem.engaged_strategy.add_founder = MagicMock()
 
-        company.add_founder(user, 1)
+        ecosystem.add_founder(user, 1)
 
-        company.engaged_strategy.add_founder.assert_called_with(user, 1)
+        ecosystem.engaged_strategy.add_founder.assert_called_with(user, 1)
 
     def test_pay_should_call_engaged_strategy(self):
         user = User(None, None)
-        company = Company("id", [user])
-        company.engaged_strategy.pay = MagicMock()
+        ecosystem = Ecosystem("id", [user])
+        ecosystem.engaged_strategy.pay = MagicMock()
 
-        company.pay(["a", "b"])
+        ecosystem.pay(["a", "b"])
 
-        company.engaged_strategy.pay.assert_called_with(["a", "b"])
+        ecosystem.engaged_strategy.pay.assert_called_with(["a", "b"])
 
 
 class TestDefaultEngagedStrategy(unittest.TestCase):
@@ -403,21 +365,21 @@ class TestDefaultEngagedStrategy(unittest.TestCase):
         strategy.add_engaged(user1, 2)
 
         strategy.pay(["1", "2", "3", "4", "5"])
-        self.assertEqual(len(user1.balance.income), 3)
-        self.assertEqual(len(user2.balance.income), 1)
-        self.assertEqual(len(user3.balance.income), 1)
+        self.assertEqual(len(user1.economic_exp), 3)
+        self.assertEqual(len(user2.economic_exp), 1)
+        self.assertEqual(len(user3.economic_exp), 1)
 
         strategy.pay(["1", "2", "3", "4", "5"])
-        self.assertEqual(len(user1.balance.income), 4)
-        self.assertEqual(len(user2.balance.income), 1)
-        self.assertEqual(len(user3.balance.income), 5)
+        self.assertEqual(len(user1.economic_exp), 4)
+        self.assertEqual(len(user2.economic_exp), 1)
+        self.assertEqual(len(user3.economic_exp), 5)
 
     def test_pay_should_pay_founder_if_no_engaged(self):
         founder = User("founder", None)
         strategy = DefaultEngagedStrategy([founder])
 
         strategy.pay(["1", "2", "3", "4", "5"])
-        self.assertEqual(len(founder.balance.income), 5)
+        self.assertEqual(len(founder.economic_exp), 5)
 
     def test_pay_should_pay_founderS_equaly_if_no_engaged(self):
         founder1 = User("founder1", None)
@@ -425,5 +387,5 @@ class TestDefaultEngagedStrategy(unittest.TestCase):
         strategy = DefaultEngagedStrategy([founder1, founder2])
 
         strategy.pay(["1", "2", "3", "4"])
-        self.assertEqual(len(founder1.balance.income), 2)
-        self.assertEqual(len(founder2.balance.income), 2)
+        self.assertEqual(len(founder1.economic_exp), 2)
+        self.assertEqual(len(founder2.economic_exp), 2)

@@ -3,20 +3,16 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 
 
-# This shortcut create a class named "Balance" with 2 attributes :
-# "income" & "outcome"
-Balance = collections.namedtuple('Balance', 'income outcome')
-
 class GuziCreator:
-    def create_guzi(user, date, index):
-        return date.isoformat() + "-" + user.id + "-guzi{:04d}".format(index)
+    def create_money(user, date, index):
+        return date.isoformat() + "-" + user.id + "-money{:04d}".format(index)
 
-    def create_guza(user, date, index):
-        return date.isoformat() + "-" + user.id + "-guza{:04d}".format(index)
+    def create_invest(user, date, index):
+        return date.isoformat() + "-" + user.id + "-invest{:04d}".format(index)
 
 
 class SpendableEntity:
-    def pay(self, guzis):
+    def pay(self, moneys):
         raise NotImplementedError
         
     def spend_to(self, target, amount):
@@ -28,17 +24,16 @@ class User(SpendableEntity):
     def __init__(self, id, birthdate):
         self.id = id
         self.birthdate = birthdate
-        self.guzi_wallet = []
-        self.guza_wallet = []
-        self.total_accumulated = []
-        self.guza_trashbin = []
-        self.balance = Balance([], [])
+        self.money_wallet = []
+        self.invest_wallet = []
+        self.economic_exp = []
+        self.invest_trashbin = []
 
-    def daily_guzis(self):
+    def daily_moneys(self):
         """
-        Return the number of Guzis (and Guzas) the user should earn each day
+        Return the number of Guzis (and Invests) the user should earn each day
         """
-        return int(len(self.total_accumulated) ** (1/3) + 1)
+        return int(len(self.economic_exp) ** (1/3) + 1)
 
     def age(self, date=date.today()):
         """
@@ -51,32 +46,32 @@ class User(SpendableEntity):
 
         return years
 
-    def outdate(self, guzis):
+    def outdate(self, moneys):
         """
-        Outdate the given Guzis
-        If one or more given Guzis are not in any wallet, raise an error
-        Add given Guzis to total_accumulated
-        Add given Guzas to guza_trashbin
+        Outdate the given Money
+        If one or more given Money are not in any wallet, raise an error
+        Add given Money to economic_exp
+        Also add given Invest to economic_exp
         """
-        invalid_guzis = [g for g in guzis
-                if g not in self.guzi_wallet + self.guza_wallet]
-        if len(invalid_guzis) > 0:
-            raise ValueError("guzi(s) {} is/are invalid".format(invalid_guzis))
+        invalid_moneys = [g for g in moneys
+                if g not in self.money_wallet + self.invest_wallet]
+        if len(invalid_moneys) > 0:
+            raise ValueError("Money(s) {} is/are invalid".format(invalid_moneys))
         
-        for guzi in guzis:
-            if self._is_guzi(guzi):
-                del self.guzi_wallet[self.guzi_wallet.index(guzi)]
-                self.total_accumulated.append(guzi)
-            if self._is_guza(guzi):
-                del self.guza_wallet[self.guza_wallet.index(guzi)]
-                self.guza_trashbin.append(guzi)
+        for m in moneys:
+            if self._is_money(m):
+                self.economic_exp.append(m)
+                del self.money_wallet[self.money_wallet.index(m)]
+            if self._is_invest(m):
+                self.economic_exp.append(m)
+                del self.invest_wallet[self.invest_wallet.index(m)]
 
-    def pay(self, guzis):
+    def pay(self, moneys):
         """
-        Add given guzis to User balance income
+        Add given moneys to User economic_exp
         """
-        for guzi in guzis:
-            self.balance.income.append(guzi)
+        for m in moneys:
+            self.economic_exp.append(m)
 
     def spend_to(self, target, amount):
         """
@@ -85,108 +80,94 @@ class User(SpendableEntity):
         """
         if amount < 0:
             raise ValueError("Cannot spend negative amount")
-        if amount > len(self.guzi_wallet):
+        if amount > len(self.money_wallet):
             raise ValueError("User cannot pay this amount")
         if target is self:
-            self.total_accumulated += self.guzi_wallet[:amount]
+            self.economic_exp += self.money_wallet[:amount]
         else:
-            target.pay(self.guzi_wallet[:amount])
-        del self.guzi_wallet[:amount]
+            target.pay(self.money_wallet[:amount])
+        del self.money_wallet[:amount]
 
-    def give_guzas_to(self, target, amount):
+    def invest_in(self, target, amount):
         """
-        give amount of Guzas to given Company target
+        give amount of Invests to given Ecosystem target
         if amount is < 0 or too expansive, raise an error
         """
         if amount < 0:
             raise ValueError("Cannot give negative amount")
-        if amount > len(self.guza_wallet):
-            raise ValueError("User cannot give this amount")
-        if not isinstance(target, Company):
-            raise ValueError("Can only give Guzas to Company, not {}".format(type(target)))
-        target.add_guzas(self.guza_wallet[:amount])
-        for g in self.guza_wallet[:amount]:
-            self.balance.outcome.append(g)
-        del self.guza_wallet[:amount]
+        if amount > len(self.invest_wallet):
+            raise ValueError("User cannot give this much")
+        if not isinstance(target, Ecosystem):
+            raise ValueError("Can only give Invests to Ecosystem, not {}".format(type(target)))
+        target.add_invests(self.invest_wallet[:amount])
+        del self.invest_wallet[:amount]
 
-    def check_balance(self):
-        """
-        Check the balance state
-        If the balance income is greater than outcome,
-        add the bonus income to the total_accumulated
-        """
-        while len(self.balance.income) > len(self.balance.outcome):
-            guzi = self.balance.income[-1]
-            # Remove last element to add it to total_accumulated
-            del self.balance.income[-1]
-            self.total_accumulated.append(guzi)
-
-    def check_outdated_guzis(self, date):
+    def check_outdated_moneys(self, date):
         """
         Pass through every User's Guzis and add outdated ones
-        (>30 days old) to User's total_accumulated
+        (>30 days old) to User's economic_exp
         """
-        guzis_to_outdate = []
-        for guzi in self.guzi_wallet + self.guza_wallet:
+        moneys_to_outdate = []
+        for money in self.money_wallet + self.invest_wallet:
             # extract the date from the first 10 characters (YYYY-MM-DD)
-            creation_date = date.fromisoformat(guzi[:10])
+            creation_date = date.fromisoformat(money[:10])
             if date - creation_date >= timedelta(days=30):
-                guzis_to_outdate.append(guzi)
+                moneys_to_outdate.append(money)
 
-        self.outdate(guzis_to_outdate)
+        self.outdate(moneys_to_outdate)
 
-    def create_daily_guzis(self, date):
+    def create_daily_money_and_invest(self, date):
         """
         Create daily Guzis for User.
-        Daily_Guzis = (total_accumulated)^(1/3) + 1
+        Daily_Guzis = (economic_exp)^(1/3) + 1
         Each Guzi has a specific format :
-        <date>-<owner_id>-guzi<guzi_index>"
+        <date>-<owner_id>-money<money_index>"
             <date> : 2010-04-18
-            <guzi_index> : 4 digits index ("0001", "0342")
+            <money_index> : 4 digits index ("0001", "0342")
         """
-        number_of_guzis_to_add = self.daily_guzis()
-        for i in range(number_of_guzis_to_add):
-            self.guzi_wallet.append(GuziCreator.create_guzi(self, date, i))
-            self.guza_wallet.append(GuziCreator.create_guza(self, date, i))
+        number_of_moneys_to_add = self.daily_moneys()
+        for i in range(number_of_moneys_to_add):
+            self.money_wallet.append(GuziCreator.create_money(self, date, i))
+            self.invest_wallet.append(GuziCreator.create_invest(self, date, i))
 
-    def _is_guzi(self, guzi):
-        return guzi[-8:-4] == "guzi"
+    def _is_money(self, money):
+        return money[-9:-4] == "money"
 
-    def _is_guza(self, guzi):
-        return guzi[-8:-4] == "guza"
+    def _is_invest(self, money):
+        return money[-10:-4] == "invest"
 
 
-class Company(SpendableEntity):
+class Ecosystem(SpendableEntity):
 
     def __init__(self, id, founders):
         self.id = id
-        self.guzi_wallet = []
+        self.money_wallet = []
         self.engaged_strategy = DefaultEngagedStrategy(founders)
 
-    def add_guzas(self, guzas):
+    def add_invests(self, invests):
         """
-        add_guzas is called from User to give the Company Guzas it will then
+        add_invests is called from User to give the Ecosystem Invests it will then
         be able to spend.
         """
-        for guza in guzas:
-            if guza in self.guzi_wallet:
-                raise ValueError("guza {} already given".format(guza)) 
-        self.guzi_wallet += guzas
+        for invest in invests:
+            if invest in self.money_wallet:
+                raise ValueError("invest {} already given".format(invest)) 
+        self.money_wallet += invests
 
     def spend_to(self, target, amount):
         """
-        Spend given amount of Guzas to given User target
+        Spend given amount of Invests to given User target
         if amount is < 0 or too expansive, raise an error
         """
         if amount < 0:
             raise ValueError("Cannot spend negative amount")
-        if amount > len(self.guzi_wallet):
+        if amount > len(self.money_wallet):
             raise ValueError("User cannot pay this amount")
         if target is self:
-            self.total_accumulated += self.guzi_wallet[:amount]
+            self.economic_exp += self.money_wallet[:amount]
         else:
-            target.pay(self.guzi_wallet[:amount])
-        del self.guzi_wallet[:amount]
+            target.pay(self.money_wallet[:amount])
+        del self.money_wallet[:amount]
 
     def add_engaged(self, user, times):
         self.engaged_strategy.add_engaged(user, times)
@@ -194,12 +175,12 @@ class Company(SpendableEntity):
     def add_founder(self, user, times):
         self.engaged_strategy.add_founder(user, times)
 
-    def pay(self, guzis):
+    def pay(self, moneys):
         """
-        When a User or a Company pays a Company, the paied Guzis don't stay in
-        any Company wallet, it goes directly to Company's engaged users balance.
+        When a User or an Ecosystem pays an Ecosystem, the paied Invests don't stay in
+        any Ecosystem wallet, it goes directly to Ecosystem's engaged users economic_exp.
         """
-        self.engaged_strategy.pay(guzis)
+        self.engaged_strategy.pay(moneys)
 
 
 class DefaultEngagedStrategy:
@@ -218,16 +199,16 @@ class DefaultEngagedStrategy:
       - User3 gets 4 Guzis
       - User 1 gets 1 Guzi
       (See test test_pay_should_pay_in_arrival_and_times_order for details)
-      If a Company want a user to get daily engaged, it must add him daily
+      If a Ecosystem want a user to get daily engaged, it must add him daily
     """
     def __init__(self, founders):
         """
         At least one founder is necessary, instead where would the profit paied
-        Guzis go ? Company CAN NOT KEEP ANY PAID GUZI, so it needs to send them
+        Guzis go ? Ecosystem CAN NOT KEEP ANY PAID GUZI, so it needs to send them
         to any user : the founder(s)
         """
         if len(founders) == 0:
-            raise ValueError("At least one founder is necessary to a company")
+            raise ValueError("At least one founder is necessary to a ecosystem")
         self.users = {}
         self.engaged_users = []
         self.founders = []
@@ -256,15 +237,15 @@ class DefaultEngagedStrategy:
         for t in range(times):
             self.founders.append(user.id)
 
-    def pay(self, guzis):
-        for g in guzis:
-            self._pay_guzi(g)
+    def pay(self, moneys):
+        for g in moneys:
+            self._pay_money(g)
 
-    def _pay_guzi(self, guzi):
+    def _pay_money(self, money):
         if len(self.engaged_users) == 0:
-            self.users[self.founders[self.founders_index]].pay([guzi])
+            self.users[self.founders[self.founders_index]].pay([money])
             self.founders_index += 1
             self.founders_index %= len(self.founders)
         else:
-            self.users[self.engaged_users[0]].pay(guzi)
+            self.users[self.engaged_users[0]].pay(money)
             del self.engaged_users[0]
